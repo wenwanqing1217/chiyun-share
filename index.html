@@ -69,6 +69,7 @@
     background:#f1f5fb;border-radius:6px;padding:3px 8px;
   }
   .nodata{color:var(--sub)}
+  .more{color:var(--brand);text-decoration:none;font-weight:600}
   .retry{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
   /* 快捷问题 */
   .chips{display:flex;gap:8px;overflow-x:auto;padding:8px 14px 12px;scrollbar-width:none}
@@ -169,14 +170,18 @@ const INDEX=DATA.map(d=>({d,g:grams(d.t+d.x)}));
 function search(q){
   const qg=grams(q);
   if(!qg.size) return [];
+  const priceQ=/多少钱|价格|费用|报价|贵|便宜|计费/.test(q);
   const hits=[];
   for(const it of INDEX){
     let m=0;
     for(const g of qg) if(it.g.has(g)) m++;
     const cov=m/qg.size;
     if(cov<0.34) continue;
-    const boost=[...qg].some(g=>it.d.t.includes(g))?0.12:0;
-    hits.push({s:cov+boost,d:it.d});
+    let score=cov;
+    if([...qg].some(g=>it.d.t.includes(g))) score+=0.12;
+    if(priceQ && it.d.s.indexOf("价格表")>=0) score+=0.3;
+    if(priceQ && /\d+\.\d+\s*元/.test(it.d.x)) score+=0.08;
+    hits.push({s:score,d:it.d});
   }
   hits.sort((a,b)=>b.s-a.s);
   const seen=new Set();
@@ -211,7 +216,14 @@ function answer(q){
       html='<p class="nodata">资料里暂时没有这条的明确答案。可以换个问法，或者直接问人工。</p>'+
         '<div class="retry"><a class="src" href="https://work.weixin.qq.com/ca/cawcde90eff79aef43" target="_blank" rel="noopener">加企业微信</a></div>';
     }else{
-      html=list.map(d=>'<h3>'+esc(d.t)+'</h3><p>'+esc(d.x)+'</p><span class="src">来源：'+esc(d.s)+'</span>').join("");
+      window.__full = list;
+      html=list.map((d,i)=>{
+        const long=d.x.length>300;
+        const body=long
+          ? esc(d.x.slice(0,300))+'…<a href="javascript:;" class="more" data-i="'+i+'">展开全文</a>'
+          : esc(d.x);
+        return '<h3>'+esc(d.t)+'</h3><p>'+body+'</p><span class="src">来源：'+esc(d.s)+'</span>';
+      }).join("");
     }
     typing.querySelector(".bubble").innerHTML=html;
     const chat=document.getElementById("chat");
@@ -228,6 +240,12 @@ function run(){
 }
 document.getElementById("go").onclick=run;
 document.getElementById("q").addEventListener("keydown",e=>{if(e.key==="Enter")run();});
+document.addEventListener("click",e=>{
+  const a=e.target.closest(".more");
+  if(!a || !window.__full) return;
+  const item=window.__full[+a.dataset.i];
+  if(item) a.parentElement.textContent=item.x;
+});
 document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>answer(c.textContent.trim()));
 </script>
 </body>
