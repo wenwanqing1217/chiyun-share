@@ -70,6 +70,10 @@
   }
   .nodata{color:var(--sub)}
   .more{color:var(--brand);text-decoration:none;font-weight:600}
+  .tblwrap{overflow:auto;max-height:300px;border:1px solid var(--line);border-radius:10px;margin-top:6px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border-bottom:1px solid var(--line);padding:6px 9px;text-align:left;white-space:nowrap}
+  th{background:#f5f8ff;position:sticky;top:0;font-weight:600;color:#1e3a8a}
   .retry{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
   /* 快捷问题 */
   .chips{display:flex;gap:8px;overflow-x:auto;padding:8px 14px 12px;scrollbar-width:none}
@@ -195,6 +199,33 @@ function esc(s){
   return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 }
 
+function mdTable(text){
+  const lines=text.split("\n");
+  let html="",rows=[],inTable=false;
+  const flush=()=>{
+    if(!rows.length) return;
+    const head=rows[0], body=rows.slice(1);
+    html+='<div class="tblwrap"><table><thead><tr>'+
+      head.map(c=>"<th>"+esc(c)+"</th>").join("")+
+      "</tr></thead><tbody>"+
+      body.map(r=>"<tr>"+r.map(c=>"<td>"+esc(c)+"</td>").join("")+"</tr>").join("")+
+      "</tbody></table></div>";
+    rows=[];
+  };
+  for(const line of lines){
+    const t=line.trim();
+    if(t.startsWith("|")){
+      const cells=t.replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
+      if(cells.every(c=>/^:?-{2,}:?$/.test(c))){ continue; }
+      rows.push(cells); inTable=true; continue;
+    }
+    if(inTable){ flush(); inTable=false; }
+    if(t) html+="<p>"+esc(line)+"</p>";
+  }
+  if(inTable) flush();
+  return html;
+}
+
 function add(html,me){
   const chat=document.getElementById("chat");
   const wrap=document.createElement("div");
@@ -218,11 +249,16 @@ function answer(q){
     }else{
       window.__full = list;
       html=list.map((d,i)=>{
-        const long=d.x.length>300;
-        const body=long
-          ? esc(d.x.slice(0,300))+'…<a href="javascript:;" class="more" data-i="'+i+'">展开全文</a>'
-          : esc(d.x);
-        return '<h3>'+esc(d.t)+'</h3><p>'+body+'</p><span class="src">来源：'+esc(d.s)+'</span>';
+        const hasTable=d.x.indexOf("|")>=0;
+        let body;
+        if(hasTable){
+          body=mdTable(d.x);
+        }else if(d.x.length>300){
+          body='<p>'+esc(d.x.slice(0,300))+'…<a href="javascript:;" class="more" data-i="'+i+'">展开全文</a></p>';
+        }else{
+          body='<p>'+esc(d.x)+'</p>';
+        }
+        return '<h3>'+esc(d.t)+'</h3>'+body+'<span class="src">来源：'+esc(d.s)+'</span>';
       }).join("");
     }
     typing.querySelector(".bubble").innerHTML=html;
