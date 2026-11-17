@@ -89,6 +89,9 @@
   }
   .nodata{color:var(--sub)}
   .more{color:var(--brand);text-decoration:none;font-weight:600}
+  .bubble strong{font-weight:700}
+  .bubble ul{margin:6px 0 0;padding-left:18px}
+  .bubble li{margin:2px 0}
   .tblwrap{overflow:auto;max-height:300px;border:1px solid var(--line);border-radius:10px;margin-top:6px}
   table{border-collapse:collapse;width:100%;font-size:13px}
   th,td{border-bottom:1px solid var(--line);padding:6px 9px;text-align:left;white-space:nowrap}
@@ -220,12 +223,16 @@ function esc(s){
   return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 }
 
-function mdTable(text){
+function fmt(s){
+  return esc(s).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/`([^`]+)`/g,"<code>$1</code>");
+}
+
+function mdBlocks(text){
   const lines=text.split("\n");
-  let html="",rows=[],inTable=false;
-  const flush=()=>{
+  let html="",rows=[],inTable=false,list=[];
+  const flushTable=()=>{
     if(!rows.length) return;
-    const head=rows[0], body=rows.slice(1);
+    const head=rows[0],body=rows.slice(1);
     html+='<div class="tblwrap"><table><thead><tr>'+
       head.map(c=>"<th>"+esc(c)+"</th>").join("")+
       "</tr></thead><tbody>"+
@@ -233,17 +240,26 @@ function mdTable(text){
       "</tbody></table></div>";
     rows=[];
   };
+  const flushList=()=>{
+    if(!list.length) return;
+    html+="<ul>"+list.map(x=>"<li>"+fmt(x)+"</li>").join("")+"</ul>";
+    list=[];
+  };
   for(const line of lines){
     const t=line.trim();
     if(t.startsWith("|")){
+      flushList();
       const cells=t.replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
-      if(cells.every(c=>/^:?-{2,}:?$/.test(c))){ continue; }
+      if(cells.every(c=>/^:?-{2,}:?$/.test(c))) continue;
       rows.push(cells); inTable=true; continue;
     }
-    if(inTable){ flush(); inTable=false; }
-    if(t) html+="<p>"+esc(line)+"</p>";
+    if(inTable){ flushTable(); inTable=false; }
+    if(/^[-*]\s+/.test(t)){ list.push(t.replace(/^[-*]\s+/,"")); continue; }
+    flushList();
+    if(t) html+="<p>"+fmt(t)+"</p>";
   }
-  if(inTable) flush();
+  flushList();
+  if(inTable) flushTable();
   return html;
 }
 
@@ -273,11 +289,11 @@ function answer(q){
         const hasTable=d.x.indexOf("|")>=0;
         let body;
         if(hasTable){
-          body=mdTable(d.x);
+          body=mdBlocks(d.x);
         }else if(d.x.length>300){
-          body='<p>'+esc(d.x.slice(0,300))+'…<a href="javascript:;" class="more" data-i="'+i+'">展开全文</a></p>';
+          body='<p>'+fmt(d.x.slice(0,300))+'…<a href="javascript:;" class="more" data-i="'+i+'">展开全文</a></p>';
         }else{
-          body='<p>'+esc(d.x)+'</p>';
+          body=mdBlocks(d.x);
         }
         return '<h3>'+esc(d.t)+'</h3>'+body+'<span class="src">来源：'+esc(d.s)+'</span>';
       }).join("");
@@ -304,7 +320,7 @@ document.addEventListener("click",e=>{
   const a=e.target.closest(".more");
   if(!a || !window.__full) return;
   const item=window.__full[+a.dataset.i];
-  if(item) a.parentElement.textContent=item.x;
+  if(item) a.parentElement.outerHTML=mdBlocks(item.x);
 });
 document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>answer(c.textContent.trim()));
 </script>
