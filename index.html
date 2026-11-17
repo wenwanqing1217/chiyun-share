@@ -92,6 +92,8 @@
   .bubble strong{font-weight:700}
   .bubble ul{margin:6px 0 0;padding-left:18px}
   .bubble li{margin:2px 0}
+  .quote{margin:6px 0 0;padding:8px 12px;background:#f6f8fd;border-left:3px solid #c7d7f5;border-radius:0 8px 8px 0}
+  .quote p{margin:0;color:#42526b;font-size:14px}
   .tblwrap{overflow:auto;max-height:300px;border:1px solid var(--line);border-radius:10px;margin-top:6px}
   table{border-collapse:collapse;width:100%;font-size:13px}
   th,td{border-bottom:1px solid var(--line);padding:6px 9px;text-align:left;white-space:nowrap}
@@ -229,7 +231,7 @@ function fmt(s){
 
 function mdBlocks(text){
   const lines=text.split("\n");
-  let html="",rows=[],inTable=false,list=[];
+  let html="",rows=[],inTable=false,list=[],quote=[];
   const flushTable=()=>{
     if(!rows.length) return;
     const head=rows[0],body=rows.slice(1);
@@ -245,6 +247,11 @@ function mdBlocks(text){
     html+="<ul>"+list.map(x=>"<li>"+fmt(x)+"</li>").join("")+"</ul>";
     list=[];
   };
+  const flushQuote=()=>{
+    if(!quote.length) return;
+    html+='<div class="quote">'+quote.map(x=>"<p>"+fmt(x)+"</p>").join("")+"</div>";
+    quote=[];
+  };
   for(const line of lines){
     const t=line.trim();
     if(t.startsWith("|")){
@@ -254,11 +261,12 @@ function mdBlocks(text){
       rows.push(cells); inTable=true; continue;
     }
     if(inTable){ flushTable(); inTable=false; }
-    if(/^[-*]\s+/.test(t)){ list.push(t.replace(/^[-*]\s+/,"")); continue; }
-    flushList();
+    if(t.startsWith(">")){ flushList(); quote.push(t.replace(/^>\s?/,"")); continue; }
+    if(/^[-*]\s+/.test(t)){ flushList(); flushQuote(); list.push(t.replace(/^[-*]\s+/,"")); continue; }
+    flushList(); flushQuote();
     if(t) html+="<p>"+fmt(t)+"</p>";
   }
-  flushList();
+  flushList(); flushQuote();
   if(inTable) flushTable();
   return html;
 }
